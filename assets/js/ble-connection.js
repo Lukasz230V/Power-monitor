@@ -179,118 +179,118 @@ class BLEManager {
         }
     }
 
-async connect() {
-    if (this.isConnecting) return;
-    this.isConnecting = true;
-    
-    try {
-        // Zmień przycisk na spinner
-        if (this.btn) {
-            this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>SZUKAM URZĄDZENIA...';
-            this.btn.disabled = true;
-        }
+    async connect() {
+        if (this.isConnecting) return;
+        this.isConnecting = true;
+        
+        try {
+            // Zmień przycisk na spinner
+            if (this.btn) {
+                this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>SZUKAM URZĄDZENIA...';
+                this.btn.disabled = false;
+            }
 
-        // Spróbuj połączyć się z zapamiętanym urządzeniem
-        if (this.lastDeviceId) {
-            console.log('🔄 Próbuję ponownie połączyć się z zapamiętanym urządzeniem...');
-            try {
-                this.device = await this.connectToStoredDevice();
-            } catch (err) {
-                console.log('⚠️ Nie mogę połączyć się z zapamiętanym. Szukam nowych...');
-                this.lastDeviceId = null;
-                this.clearDeviceId();
+            // Spróbuj połączyć się z zapamiętanym urządzeniem
+            if (this.lastDeviceId) {
+                console.log('🔄 Próbuję ponownie połączyć się z zapamiętanym urządzeniem...');
+                try {
+                    this.device = await this.connectToStoredDevice();
+                } catch (err) {
+                    console.log('⚠️ Nie mogę połączyć się z zapamiętanym. Szukam nowych...');
+                    this.lastDeviceId = null;
+                    this.clearDeviceId();
+                    this.device = await this.requestNewDevice();
+                }
+            } else {
+                // Brak zapamiętanego -> szukaj nowego
+                console.log('🔍 Szukam nowego urządzenia...');
                 this.device = await this.requestNewDevice();
             }
-        } else {
-            // Brak zapamiętanego -> szukaj nowego
-            console.log('🔍 Szukam nowego urządzenia...');
-            this.device = await this.requestNewDevice();
-        }
 
-        if (!this.device) {
-            console.error('❌ Nie wybrano żadnego urządzenia');
+            if (!this.device) {
+                console.error('❌ Nie wybrano żadnego urządzenia');
+                this.isConnecting = false;
+                this.btn.innerText = 'POŁĄCZ Z URZĄDZENIEM';
+                this.btn.disabled = false;
+                return;
+            }
+
+            // Zmień tekst na "Łączę..."
+            if (this.btn) {
+                this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>ŁĄCZĘ...';
+            }
+
+            // Zapisz ID nowego urządzenia
+            this.lastDeviceId = this.device.id;
+            this.saveDeviceId(this.lastDeviceId);
+
+            console.log("Łączenie z serwerem GATT...");
+            this.server = await this.device.gatt.connect();
+            
+            // Krótka pauza na stabilizację połączenia
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            if (!this.server || !this.server.connected) throw new Error("GATT Server not connected");
+
+            // Zmień tekst na "Ładuję dane..."
+            if (this.btn) {
+                this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>ŁADUJĘ DANE...';
+            }
+
+            // 1. Serwis Prądu
+            const currentService = await this.server.getPrimaryService(this.UUIDS.CURRENT_SERVICE);
+            this.currentChar = await currentService.getCharacteristic(this.UUIDS.CURRENT_CHAR);
+            await this.currentChar.startNotifications();
+            this.currentChar.addEventListener('characteristicvaluechanged', (e) => this.handleData(e));
+            
+            // 2. Serwis Przekaźnika
+            const relayService = await this.server.getPrimaryService(this.UUIDS.RELAY_SERVICE);
+            this.relayChar = await relayService.getCharacteristic(this.UUIDS.RELAY_CHAR);
+            await this.relayChar.startNotifications();
+            this.relayChar.addEventListener('characteristicvaluechanged', (e) => this.handleRelayUpdate(e));
+
+            // 3. Serwis Ustawień (Storage)
+            const storageService = await this.server.getPrimaryService(this.UUIDS.STORAGE_SERVICE);
+            this.storageChar = await storageService.getCharacteristic(this.UUIDS.STORAGE_CHR);
+            
+            // Subskrypcja zmian ustawień (dla wielu klientów)
+            await this.storageChar.startNotifications();
+            this.storageChar.addEventListener('characteristicvaluechanged', (e) => this.handleSettingsUpdate(e));
+
+            // Pobranie stanu początkowego przekaźnika
+            if (this.relayChar) {
+                const initialRelayVal = await this.relayChar.readValue();
+                this.handleRelayUpdate({ target: { value: initialRelayVal } });
+            }
+
+            console.log("✅ Połączono pomyślnie.");
+            
+            // Rejestrujemy rozłączenie dopiero po sukcesie
+            this.device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
+            
+            this.onConnected();
+
+            // Pobranie ustawień z NVS zaraz po połączeniu
+            await this.fetchStorageSettings();
+
+        } catch (error) {
+            console.error("❌ Błąd połączenia:", error);
+            
+            // Pokaż błąd na przycisku
+            if (this.btn) {
+                this.btn.innerHTML = '❌ BŁĄD - KLIKNIJ PONOWNIE';
+                this.btn.classList.replace('btn-primary', 'btn-danger');
+                setTimeout(() => {
+                    this.btn.innerHTML = 'POŁĄCZ Z URZĄDZENIEM';
+                    this.btn.classList.replace('btn-danger', 'btn-primary');
+                }, 3000);
+            }
+            
+            this.onDisconnected();
+        } finally {
             this.isConnecting = false;
-            this.btn.innerText = 'POŁĄCZ Z URZĄDZENIEM';
-            this.btn.disabled = false;
-            return;
         }
-
-        // Zmień tekst na "Łączę..."
-        if (this.btn) {
-            this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>ŁĄCZĘ...';
-        }
-
-        // Zapisz ID nowego urządzenia
-        this.lastDeviceId = this.device.id;
-        this.saveDeviceId(this.lastDeviceId);
-
-        console.log("Łączenie z serwerem GATT...");
-        this.server = await this.device.gatt.connect();
-        
-        // Krótka pauza na stabilizację połączenia
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        if (!this.server || !this.server.connected) throw new Error("GATT Server not connected");
-
-        // Zmień tekst na "Ładuję dane..."
-        if (this.btn) {
-            this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>ŁADUJĘ DANE...';
-        }
-
-        // 1. Serwis Prądu
-        const currentService = await this.server.getPrimaryService(this.UUIDS.CURRENT_SERVICE);
-        this.currentChar = await currentService.getCharacteristic(this.UUIDS.CURRENT_CHAR);
-        await this.currentChar.startNotifications();
-        this.currentChar.addEventListener('characteristicvaluechanged', (e) => this.handleData(e));
-        
-        // 2. Serwis Przekaźnika
-        const relayService = await this.server.getPrimaryService(this.UUIDS.RELAY_SERVICE);
-        this.relayChar = await relayService.getCharacteristic(this.UUIDS.RELAY_CHAR);
-        await this.relayChar.startNotifications();
-        this.relayChar.addEventListener('characteristicvaluechanged', (e) => this.handleRelayUpdate(e));
-
-        // 3. Serwis Ustawień (Storage)
-        const storageService = await this.server.getPrimaryService(this.UUIDS.STORAGE_SERVICE);
-        this.storageChar = await storageService.getCharacteristic(this.UUIDS.STORAGE_CHR);
-        
-        // Subskrypcja zmian ustawień (dla wielu klientów)
-        await this.storageChar.startNotifications();
-        this.storageChar.addEventListener('characteristicvaluechanged', (e) => this.handleSettingsUpdate(e));
-
-        // Pobranie stanu początkowego przekaźnika
-        if (this.relayChar) {
-            const initialRelayVal = await this.relayChar.readValue();
-            this.handleRelayUpdate({ target: { value: initialRelayVal } });
-        }
-
-        console.log("✅ Połączono pomyślnie.");
-        
-        // Rejestrujemy rozłączenie dopiero po sukcesie
-        this.device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
-        
-        this.onConnected();
-
-        // Pobranie ustawień z NVS zaraz po połączeniu
-        await this.fetchStorageSettings();
-
-    } catch (error) {
-        console.error("❌ Błąd połączenia:", error);
-        
-        // Pokaż błąd na przycisku
-        if (this.btn) {
-            this.btn.innerHTML = '❌ BŁĄD - KLIKNIJ PONOWNIE';
-            this.btn.classList.replace('btn-primary', 'btn-danger');
-            setTimeout(() => {
-                this.btn.innerHTML = 'POŁĄCZ Z URZĄDZENIEM';
-                this.btn.classList.replace('btn-danger', 'btn-primary');
-            }, 3000);
-        }
-        
-        this.onDisconnected();
-    } finally {
-        this.isConnecting = false;
     }
-}
 
     handleRelayUpdate(event) {
         const decoder = new TextDecoder();
@@ -387,7 +387,6 @@ async connect() {
     disconnect() {
         if (!this.device) return;
         this.device.gatt.disconnect();
-        // NE USUWAJ ID! Pozwala na auto-reconnect
     }
 
     onConnected() {
@@ -419,27 +418,26 @@ async connect() {
         console.log("Urządzenie rozłączone.");
     }
 
-setControlsDisabled(disabled) {
-    if (this.setCurrentInput) this.setCurrentInput.disabled = disabled;
-    
-    const updateBtn = (btn, dis) => {
-        if (!btn) return;
-        btn.disabled = dis;
-        if (dis) btn.classList.add('disabled');
-        else btn.classList.remove('disabled');
-    };
+    setControlsDisabled(disabled) {
+        if (this.setCurrentInput) this.setCurrentInput.disabled = disabled;
+        
+        const updateBtn = (btn, dis) => {
+            if (!btn) return;
+            btn.disabled = dis;
+            if (dis) btn.classList.add('disabled');
+            else btn.classList.remove('disabled');
+        };
 
-    // Pozostałe przyciski - wyłącz/włącz
-    updateBtn(this.setCurrentBtn, disabled);
-    updateBtn(this.idleBtn, disabled);
-    
-    if (this.idleSlider) this.idleSlider.disabled = disabled;
-    
-    this.idlePresets.forEach(btn => updateBtn(btn, disabled));
-    
-    // ⚠️ WAŻNE: Przycisk połączenia ZAWSZE powinien być aktywny!
-    // Nie wyłączamy this.btn!
-}
+        updateBtn(this.setCurrentBtn, disabled);
+        updateBtn(this.idleBtn, disabled);
+        
+        if (this.idleSlider) this.idleSlider.disabled = disabled;
+        
+        this.idlePresets.forEach(btn => updateBtn(btn, disabled));
+        
+        // ⚠️ WAŻNE: Przycisk połączenia ZAWSZE powinien być aktywny!
+        if (this.btn) this.btn.disabled = false;
+    }
 
     // ====== ODŚWIEŻANIE DANYCH PRZY POWROCIE Z TŁA ======
     async refreshDataFromDevice() {
@@ -548,19 +546,6 @@ if (outputBtn) {
     outputBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleOutputPress(); });
     outputBtn.addEventListener('touchend', handleOutputRelease);
 }
-
-// ====== AUTO-CONNECT PRZY OTWARCIU APLIKACJI ======
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('📱 Aplikacja załadowana - sprawdzam zapamiętane urządzenie...');
-    
-    // Czekaj 1.5 sekundy, potem spróbuj auto-connect
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    if (ble.lastDeviceId && !ble.device?.gatt?.connected) {
-        console.log('🔄 Próbuję automatycznego połączenia...');
-        await ble.connect();
-    }
-});
 
 // ====== OBSŁUGA POWROTU Z TŁA ======
 document.addEventListener('visibilitychange', async () => {
