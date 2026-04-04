@@ -8,6 +8,10 @@ class BLEManager {
         this.currentSettings = null;
         this.isConnecting = false;
 
+        // Storage dla zapamiętanego urządzenia
+        this.STORAGE_KEY = 'power-monitor-device-id';
+        this.lastDeviceId = this.loadDeviceId();
+
         this.UUIDS = {
             STORAGE_SERVICE: 'cd9c5081-afd3-4cd5-89f0-e87b649bafe2',
             STORAGE_CHR:     '4e2cb81c-48e6-4ae3-9ecf-f6ab7f651883',
@@ -27,6 +31,7 @@ class BLEManager {
         this.idleDisplay = document.getElementById('idle-time-display');
         this.idleBtn = document.getElementById('set-idle-btn');
         this.idlePresets = document.querySelectorAll('.idle-preset');
+        this.forgetBtn = document.getElementById('forget-device-btn');
 
         if (this.idleSlider) {
             this.idleSlider.addEventListener('input', (e) => {
@@ -56,6 +61,81 @@ class BLEManager {
         if (this.idleBtn) {
             this.idleBtn.addEventListener('click', () => this.handleSaveTimer());
         }
+
+        if (this.forgetBtn) {
+            this.forgetBtn.addEventListener('click', () => this.handleForgetDevice());
+        }
+    }
+
+    // ====== ZAPAMIĘTYWANIE URZĄDZENIA ======
+    saveDeviceId(deviceId) {
+        try {
+            localStorage.setItem(this.STORAGE_KEY, deviceId);
+            console.log('✅ ID urządzenia zapisane:', deviceId);
+        } catch (err) {
+            console.error('Błąd zapisu ID:', err);
+        }
+    }
+
+    loadDeviceId() {
+        try {
+            const id = localStorage.getItem(this.STORAGE_KEY);
+            if (id) console.log('📦 Załadowane ID urządzenia:', id);
+            return id;
+        } catch (err) {
+            console.error('Błąd odczytu ID:', err);
+            return null;
+        }
+    }
+
+    clearDeviceId() {
+        try {
+            localStorage.removeItem(this.STORAGE_KEY);
+            console.log('🗑️ ID urządzenia usunięte');
+        } catch (err) {
+            console.error('Błąd usuwania ID:', err);
+        }
+    }
+
+    handleForgetDevice() {
+        this.forgetDevice();
+        if (this.forgetBtn) this.forgetBtn.style.display = 'none';
+        if (this.btn) this.btn.innerText = 'POŁĄCZ Z URZĄDZENIEM';
+    }
+
+    forgetDevice() {
+        this.clearDeviceId();
+        this.lastDeviceId = null;
+        if (this.device) {
+            this.disconnect();
+        }
+        console.log('🗑️ Zapomniano urządzenie');
+    }
+
+    // Spróbuj połączyć się z zapamiętanym urządzeniem
+    async connectToStoredDevice() {
+        try {
+            const devices = await navigator.bluetooth.getDevices();
+            const storedDevice = devices.find(dev => dev.id === this.lastDeviceId);
+            
+            if (storedDevice) {
+                console.log('🔗 Znaleziono zapamiętane urządzenie:', storedDevice.name);
+                return storedDevice;
+            } else {
+                throw new Error('Zapamiętane urządzenie niedostępne');
+            }
+        } catch (err) {
+            console.error('Błąd getDevices:', err);
+            throw err;
+        }
+    }
+
+    // Poproś użytkownika o wybór nowego urządzenia
+    async requestNewDevice() {
+        return await navigator.bluetooth.requestDevice({
+            filters: [{ services: [this.UUIDS.CURRENT_SERVICE] }],
+            optionalServices: [this.UUIDS.RELAY_SERVICE, this.UUIDS.STORAGE_SERVICE]
+        });
     }
 
     markChanged(btn) {
@@ -77,7 +157,6 @@ class BLEManager {
         if (isNaN(val) || val < 0.10) {
             val = 0.10;
         }
-        // Wymuszamy formatowanie w polu input po korekcie
         this.setCurrentInput.value = val.toFixed(2);
         
         this.currentSettings.adcThreshold = val;
@@ -105,10 +184,32 @@ class BLEManager {
         this.isConnecting = true;
         
         try {
-            this.device = await navigator.bluetooth.requestDevice({
-                filters: [{ services: [this.UUIDS.CURRENT_SERVICE] }],
-                optionalServices: [this.UUIDS.RELAY_SERVICE, this.UUIDS.STORAGE_SERVICE]
-            });
+            // Spróbuj połączyć się z zapamiętanym urządzeniem
+            if (this.lastDeviceId) {
+                console.log('🔄 Próbuję ponownie połączyć się z zapamiętanym urządzeniem...');
+                try {
+                    this.device = await this.connectToStoredDevice();
+                } catch (err) {
+                    console.log('⚠️ Nie mogę połączyć się z zapamiętanym. Szukam nowych...');
+                    this.lastDeviceId = null;
+                    this.clearDeviceId();
+                    this.device = await this.requestNewDevice();
+                }
+            } else {
+                // Brak zapamiętanego -> szukaj nowego
+                console.log('🔍 Szukam nowego urządzenia...');
+                this.device = await this.requestNewDevice();
+            }
+
+            if (!this.device) {
+                console.error('❌ Nie wybrano żadnego urządzenia');
+                this.isConnecting = false;
+                return;
+            }
+
+            // Zapisz ID nowego urządzenia
+            this.lastDeviceId = this.device.id;
+            this.saveDeviceId(this.lastDeviceId);
 
             console.log("Łączenie z serwerem GATT...");
             this.server = await this.device.gatt.connect();
@@ -144,7 +245,7 @@ class BLEManager {
                 this.handleRelayUpdate({ target: { value: initialRelayVal } });
             }
 
-            console.log("Połączono pomyślnie.");
+            console.log("✅ Połączono pomyślnie.");
             
             // Rejestrujemy rozłączenie dopiero po sukcesie
             this.device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
@@ -155,7 +256,7 @@ class BLEManager {
             await this.fetchStorageSettings();
 
         } catch (error) {
-            console.error("Błąd połączenia:", error);
+            console.error("❌ Błąd połączenia:", error);
             this.onDisconnected();
         } finally {
             this.isConnecting = false;
@@ -257,12 +358,14 @@ class BLEManager {
     disconnect() {
         if (!this.device) return;
         this.device.gatt.disconnect();
+        // NE USUWAJ ID! Pozwala na auto-reconnect
     }
 
     onConnected() {
         this.btn.innerText = "ROZŁĄCZ";
         this.btn.classList.replace('btn-primary', 'btn-danger');
         if (this.statusDot) this.statusDot.classList.replace('text-muted', 'text-success');
+        if (this.forgetBtn) this.forgetBtn.style.display = 'inline-block';
         this.setControlsDisabled(false);
     }
 
@@ -273,6 +376,7 @@ class BLEManager {
         }
         if (this.statusDot) this.statusDot.classList.replace('text-success', 'text-muted');
         if (this.valueDisplay) this.valueDisplay.innerText = "0.00";
+        if (this.forgetBtn) this.forgetBtn.style.display = 'none';
         this.setControlsDisabled(true);
         
         // Czyszczenie referencji (tylko jeśli nie jesteśmy w trakcie łączenia)
@@ -411,6 +515,19 @@ if (outputBtn) {
     outputBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleOutputPress(); });
     outputBtn.addEventListener('touchend', handleOutputRelease);
 }
+
+// ====== AUTO-CONNECT PRZY OTWARCIU APLIKACJI ======
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('📱 Aplikacja załadowana - sprawdzam zapamiętane urządzenie...');
+    
+    // Czekaj 1.5 sekundy, potem spróbuj auto-connect
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    if (ble.lastDeviceId && !ble.device?.gatt?.connected) {
+        console.log('🔄 Próbuję automatycznego połączenia...');
+        await ble.connect();
+    }
+});
 
 // ====== OBSŁUGA POWROTU Z TŁA ======
 document.addEventListener('visibilitychange', async () => {
