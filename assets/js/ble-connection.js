@@ -195,7 +195,7 @@ class BLEManager {
     }
 }
 
-    
+    /*
 
 async connect() {
         if (this.isConnecting) return;
@@ -306,7 +306,154 @@ async connect() {
             if (this.btn) this.btn.disabled = false;
         }
     }
+*/
 
+
+async connect() {
+        if (this.isConnecting) return;
+        this.isConnecting = true;
+        
+        try {
+            // RESET STANU - najważniejsze dla Androida
+            if (this.device && this.device.gatt.connected) {
+                await this.device.gatt.disconnect();
+            }
+            this.server = null;
+            this.device = null;
+
+            if (this.btn) {
+                this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>INICJACJA...';
+                this.btn.disabled = true;
+            }
+
+            let deviceToConnect = null;
+
+            // 1. Próba użycia zapamiętanego urządzenia (tylko jeśli API jest dostępne)
+            if (this.lastDeviceId && navigator.bluetooth.getDevices) {
+                try {
+                    const devices = await navigator.bluetooth.getDevices();
+                    deviceToConnect = devices.find(d => d.id === this.lastDeviceId);
+                    console.log(deviceToConnect ? "Znaleziono w pamięci" : "Nie ma w pamięci");
+                } catch (e) {
+                    console.warn("Błąd getDevices", e);
+                }
+            }
+
+            // 2. Jeśli nie ma urządzenia lub próba połączenia z zapamiętanym może potrwać za długo,
+            // Android zablokuje okno wyboru. Dlatego jeśli nie mamy pewności, lepiej wywołać requestDevice.
+            if (!deviceToConnect) {
+                this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>WYBIERZ URZĄDZENIE...';
+                deviceToConnect = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [this.UUIDS.CURRENT_SERVICE] }],
+                    optionalServices: [this.UUIDS.RELAY_SERVICE, this.UUIDS.STORAGE_SERVICE]
+                });
+            }
+
+            this.device = deviceToConnect;
+
+            // Dodajemy listener rozłączenia od razu
+            this.device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
+
+            if (this.btn) this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>ŁĄCZENIE GATT...';
+
+            // 3. Połączenie z serwerem
+            this.server = await this.device.gatt.connect();
+            
+            // Mała pauza - Android jej potrzebuje na odświeżenie bazy usług
+            await new Promise(r => setTimeout(r, 600));
+
+            if (this.btn) this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>KONFIGURACJA...';
+
+            // 4. Pobieranie serwisów - bezpośrednio (Twoja struktura)
+            const currentService = await this.server.getPrimaryService(this.UUIDS.CURRENT_SERVICE);
+            this.currentChar = await currentService.getCharacteristic(this.UUIDS.CURRENT_CHAR);
+            await this.currentChar.startNotifications();
+            this.currentChar.addEventListener('characteristicvaluechanged', (e) => this.handleData(e));
+            
+            const relayService = await this.server.getPrimaryService(this.UUIDS.RELAY_SERVICE);
+            this.relayChar = await relayService.getCharacteristic(this.UUIDS.RELAY_CHAR);
+            await this.relayChar.startNotifications();
+            this.relayChar.addEventListener('characteristicvaluechanged', (e) => this.handleRelayUpdate(e));
+
+            const storageService = await this.server.getPrimaryService(this.UUIDS.STORAGE_SERVICE);
+            this.storageChar = await storageService.getCharacteristic(this.UUIDS.STORAGE_CHR);
+            await this.storageChar.startNotifications();
+            this.storageChar.addEventListener('characteristicvaluechanged', (e) => this.handleSettingsUpdate(e));
+
+            // Pobranie danych startowych
+            if (this.relayChar) {
+                const val = await this.relayChar.readValue();
+                this.handleRelayUpdate({ target: { value: val } });
+            }
+
+            this.lastDeviceId = this.device.id;
+            this.saveDeviceId(this.lastDeviceId);
+            this.onConnected();
+            await this.fetchStorageSettings();
+
+        } catch (error) {
+            console.error("❌ Błąd połączenia:", error);
+            // Jeśli błąd dotyczy zapamiętanego urządzenia, usuń je z pamięci, by przy następnym kliknięciu wymusić skanowanie
+            if (this.lastDeviceId) {
+                this.clearDeviceId();
+                this.lastDeviceId = null;
+            }
+            this.handleConnectError(error);
+        } finally {
+            this.isConnecting = false;
+            if (this.btn) this.btn.disabled = false;
+        }
+    }
+
+    onDisconnected() {
+        console.log("Urządzenie rozłączone - czyszczenie referencji");
+        
+        // Czyścimy flagi i referencje
+        this.server = null;
+        this.device = null;
+        this.relayChar = null;
+        this.currentChar = null;
+        this.storageChar = null;
+
+        if (this.btn) {
+            this.btn.innerText = "POŁĄCZ Z URZĄDZENIEM";
+            this.btn.classList.replace('btn-danger', 'btn-primary');
+            this.btn.classList.replace('btn-success', 'btn-primary');
+        }
+        if (this.statusDot) {
+            this.statusDot.classList.remove('text-success');
+            this.statusDot.classList.add('text-muted');
+        }
+        this.setControlsDisabled(true);
+    }
+
+    handleConnectError(error) {
+        if (this.btn) {
+            this.btn.innerHTML = '❌ BŁĄD POŁĄCZENIA';
+            this.btn.classList.replace('btn-primary', 'btn-danger');
+            setTimeout(() => {
+                this.btn.innerText = "POŁĄCZ Z URZĄDZENIEM";
+                this.btn.classList.replace('btn-danger', 'btn-primary');
+            }, 2000);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     handleRelayUpdate(event) {
         const decoder = new TextDecoder();
         const value = decoder.decode(event.target.value).trim();
