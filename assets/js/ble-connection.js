@@ -419,23 +419,27 @@ async connect() {
         console.log("Urządzenie rozłączone.");
     }
 
-    setControlsDisabled(disabled) {
-        if (this.setCurrentInput) this.setCurrentInput.disabled = disabled;
-        
-        const updateBtn = (btn, dis) => {
-            if (!btn) return;
-            btn.disabled = dis;
-            if (dis) btn.classList.add('disabled');
-            else btn.classList.remove('disabled');
-        };
+setControlsDisabled(disabled) {
+    if (this.setCurrentInput) this.setCurrentInput.disabled = disabled;
+    
+    const updateBtn = (btn, dis) => {
+        if (!btn) return;
+        btn.disabled = dis;
+        if (dis) btn.classList.add('disabled');
+        else btn.classList.remove('disabled');
+    };
 
-        updateBtn(this.setCurrentBtn, disabled);
-        updateBtn(this.idleBtn, disabled);
-        
-        if (this.idleSlider) this.idleSlider.disabled = disabled;
-        
-        this.idlePresets.forEach(btn => updateBtn(btn, disabled));
-    }
+    // Pozostałe przyciski - wyłącz/włącz
+    updateBtn(this.setCurrentBtn, disabled);
+    updateBtn(this.idleBtn, disabled);
+    
+    if (this.idleSlider) this.idleSlider.disabled = disabled;
+    
+    this.idlePresets.forEach(btn => updateBtn(btn, disabled));
+    
+    // ⚠️ WAŻNE: Przycisk połączenia ZAWSZE powinien być aktywny!
+    // Nie wyłączamy this.btn!
+}
 
     // ====== ODŚWIEŻANIE DANYCH PRZY POWROCIE Z TŁA ======
     async refreshDataFromDevice() {
