@@ -1,0 +1,44 @@
+{
+  "short_name": "Monitor",
+  "name": "Monitor mocy",
+  "description": "Aplikacja PWA do monitorowania zasilania via Bluetooth Low Energy",
+  "icons": [
+    {
+      "src": "/Power-monitor/assets/img/pmonitor.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any"
+    },
+    {
+      "src": "/Power-monitor/assets/img/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/Power-monitor/assets/img/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/Power-monitor/index.html",
+  "scope": "/Power-monitor/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0d6efd",
+  "background_color": "#ffffff",
+  "categories": ["utilities", "productivity"],
+  "screenshots": [
+    {
+      "src": "/Power-monitor/assets/img/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/Power-monitor/assets/img/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
