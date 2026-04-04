@@ -3,12 +3,12 @@ const ASSETS = [
   '/',
   '/index.html',
   '/styles.css',
-  '/xToggle.css',
   '/ble-connection.js',
   '/pmonitor.png',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.8/js/bootstrap.min.js'
 ];
+
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
