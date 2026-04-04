@@ -4,11 +4,11 @@ const urlsToCache = [
   '/Power-monitor/index.html',
   '/Power-monitor/manifest.json',
   '/Power-monitor/assets/bootstrap/css/bootstrap.min.css',
-  '/Power-monitor/assets/css/xToggle.css',
   '/Power-monitor/assets/bootstrap/js/bootstrap.min.js',
   '/Power-monitor/assets/js/ble-connection.js',
   '/Power-monitor/assets/img/pmonitor.png'
 ];
+
 
 // Instalacja Service Workera
 self.addEventListener('install', event => {
