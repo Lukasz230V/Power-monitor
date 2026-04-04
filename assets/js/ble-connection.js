@@ -171,13 +171,31 @@ class BLEManager {
         this.resetBtnState(this.idleBtn);
     }
 
+    // async toggleConnection() {
+    //     if (this.device && this.device.gatt.connected) {
+    //         this.disconnect();
+    //     } else {
+    //         await this.connect();
+    //     }
+    // }
+
     async toggleConnection() {
-        if (this.device && this.device.gatt.connected) {
-            this.disconnect();
-        } else {
-            await this.connect();
-        }
+    if (this.isConnecting) {
+        // Jeśli użytkownik kliknie drugi raz podczas łączenia, 
+        // możemy zresetować stan, by pozwolić na nową próbę
+        this.isConnecting = false;
+        this.connect(); 
+        return;
     }
+    
+    if (this.device && this.device.gatt.connected) {
+        this.disconnect();
+    } else {
+        await this.connect();
+    }
+}
+
+    
 
     async connect() {
         if (this.isConnecting) return;
@@ -188,6 +206,7 @@ class BLEManager {
             if (this.btn) {
                 this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>SZUKAM URZĄDZENIA...';
                 this.btn.disabled = false;
+                 
             }
 
             // Spróbuj połączyć się z zapamiętanym urządzeniem
