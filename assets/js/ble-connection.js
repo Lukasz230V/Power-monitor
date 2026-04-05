@@ -559,26 +559,26 @@ async connect() {
         this.setControlsDisabled(false);
     }
 
-    onDisconnected() {
-        if (this.btn) {
-            this.btn.innerText = "POŁĄCZ Z URZĄDZENIEM";
-            this.btn.classList.replace('btn-danger', 'btn-primary');
-        }
-        if (this.statusDot) this.statusDot.classList.replace('text-success', 'text-muted');
-        if (this.valueDisplay) this.valueDisplay.innerText = "0.00";
-        if (this.forgetBtn) this.forgetBtn.style.display = 'none';
-        this.setControlsDisabled(true);
+    // onDisconnected() {
+    //     if (this.btn) {
+    //         this.btn.innerText = "POŁĄCZ Z URZĄDZENIEM";
+    //         this.btn.classList.replace('btn-danger', 'btn-primary');
+    //     }
+    //     if (this.statusDot) this.statusDot.classList.replace('text-success', 'text-muted');
+    //     if (this.valueDisplay) this.valueDisplay.innerText = "0.00";
+    //     if (this.forgetBtn) this.forgetBtn.style.display = 'none';
+    //     this.setControlsDisabled(true);
         
-        // Czyszczenie referencji (tylko jeśli nie jesteśmy w trakcie łączenia)
-        this.relayChar = null;
-        this.currentChar = null;
-        this.storageChar = null;
-        this.currentSettings = null;
-        this.server = null;
-        this.device = null;
+    //     // Czyszczenie referencji (tylko jeśli nie jesteśmy w trakcie łączenia)
+    //     this.relayChar = null;
+    //     this.currentChar = null;
+    //     this.storageChar = null;
+    //     this.currentSettings = null;
+    //     this.server = null;
+    //     this.device = null;
         
-        console.log("Urządzenie rozłączone.");
-    }
+    //     console.log("Urządzenie rozłączone.");
+    // }
 
     setControlsDisabled(disabled) {
         if (this.setCurrentInput) this.setCurrentInput.disabled = disabled;
