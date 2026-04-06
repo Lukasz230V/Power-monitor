@@ -1,7 +1,8 @@
-const CACHE_NAME = 'pmonitor-v1';
-const ASSETS = [
+const CACHE_NAME = 'power-monitor-v1';
+const urlsToCache = [
   '/',
   '/index.html',
+  '/manifest.json',
   '/styles.css',
   '/ble-connection.js',
   '/pmonitor.png',
@@ -10,16 +11,71 @@ const ASSETS = [
 ];
 
 
-self.addEventListener('install', (event) => {
+// Instalacja Service Workera
+self.addEventListener('install', event => {
+  console.log('🔧 Service Worker: instalacja...');
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache => {
+      console.log('✅ Cache otwarty');
+      return cache.addAll(urlsToCache).catch(err => {
+        console.warn('⚠️ Niektóre pliki nie mogły być dodane do cache:', err);
+        return Promise.resolve();
+      });
+    })
+  );
+  self.skipWaiting();
+});
+
+// Aktywacja Service Workera
+self.addEventListener('activate', event => {
+  console.log('🔄 Service Worker: aktywacja...');
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('🗑️ Stary cache usunięty:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+// Fetch - Cache first, fallback to network
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      if (response) {
+        return response;
+      }
+
+      return fetch(event.request).then(response => {
+        if (!response || response.status !== 200 || response.type === 'error') {
+          return response;
+        }
+
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseToCache);
+        });
+
+        return response;
+      }).catch(() => {
+        return caches.match('/index.html');
+      });
+    })
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
