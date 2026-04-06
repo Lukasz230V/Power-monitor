@@ -32,6 +32,17 @@ class BLEManager {
         this.idleBtn = document.getElementById('set-idle-btn');
         this.idlePresets = document.querySelectorAll('.idle-preset');
         this.forgetBtn = document.getElementById('forget-device-btn');
+        this.rememberChk = document.getElementById('remember-device-chk');
+
+        // Załaduj stan checkboxa
+        if (this.rememberChk) {
+            const savedState = localStorage.getItem('power-monitor-remember-state');
+            this.rememberChk.checked = (savedState === 'true');
+            this.rememberChk.addEventListener('change', () => {
+                localStorage.setItem('power-monitor-remember-state', this.rememberChk.checked);
+                if (!this.rememberChk.checked) this.clearDeviceId();
+            });
+        }
 
         if (this.idleSlider) {
             this.idleSlider.addEventListener('input', (e) => {
@@ -69,6 +80,7 @@ class BLEManager {
 
     // ====== ZAPAMIĘTYWANIE URZĄDZENIA ======
     saveDeviceId(deviceId) {
+        if (!this.rememberChk || !this.rememberChk.checked) return;
         try {
             localStorage.setItem(this.STORAGE_KEY, deviceId);
             console.log('✅ ID urządzenia zapisane:', deviceId);
@@ -171,34 +183,17 @@ class BLEManager {
         this.resetBtnState(this.idleBtn);
     }
 
-    // async toggleConnection() {
-    //     if (this.device && this.device.gatt.connected) {
-    //         this.disconnect();
-    //     } else {
-    //         await this.connect();
-    //     }
-    // }
-
     async toggleConnection() {
-    if (this.isConnecting) {
-        // Jeśli użytkownik kliknie drugi raz podczas łączenia, 
-        // możemy zresetować stan, by pozwolić na nową próbę
-        this.isConnecting = false;
-        this.connect(); 
-        return;
+        if (this.isConnecting) return;
+        
+        if (this.device && this.device.gatt && this.device.gatt.connected) {
+            this.disconnect();
+        } else {
+            await this.connect();
+        }
     }
-    
-    if (this.device && this.device.gatt.connected) {
-        this.disconnect();
-    } else {
-        await this.connect();
-    }
-}
 
-
-
-
-async connect() {
+    async connect() {
         if (this.isConnecting) return;
         this.isConnecting = true;
         
@@ -217,8 +212,8 @@ async connect() {
 
             let deviceToConnect = null;
 
-            // 1. Próba użycia zapamiętanego urządzenia (tylko jeśli API jest dostępne)
-            if (this.lastDeviceId && navigator.bluetooth.getDevices) {
+            // 1. Próba użycia zapamiętanego urządzenia (tylko jeśli opcja zaznaczona i API dostępne)
+            if (this.rememberChk && this.rememberChk.checked && this.lastDeviceId && navigator.bluetooth.getDevices) {
                 try {
                     const devices = await navigator.bluetooth.getDevices();
                     deviceToConnect = devices.find(d => d.id === this.lastDeviceId);
@@ -245,15 +240,22 @@ async connect() {
 
             if (this.btn) this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>ŁĄCZENIE GATT...';
 
-            // 3. Połączenie z serwerem
-            this.server = await this.device.gatt.connect();
+            // 3. Połączenie z serwerem z timeoutem
+            console.log("Próba nawiązania połączenia GATT...");
             
-            // Mała pauza - Android jej potrzebuje na odświeżenie bazy usług
-            await new Promise(r => setTimeout(r, 600));
+            const connectPromise = this.device.gatt.connect();
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Timeout połączenia")), 10000)
+            );
+
+            this.server = await Promise.race([connectPromise, timeoutPromise]);
+            
+            // Mała pauza - Android jej potrzebuje na stabilizację usług
+            await new Promise(r => setTimeout(r, 800));
 
             if (this.btn) this.btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>KONFIGURACJA...';
 
-            // 4. Pobieranie serwisów - bezpośrednio (Twoja struktura)
+            // 4. Pobieranie serwisów
             const currentService = await this.server.getPrimaryService(this.UUIDS.CURRENT_SERVICE);
             this.currentChar = await currentService.getCharacteristic(this.UUIDS.CURRENT_CHAR);
             await this.currentChar.startNotifications();
@@ -282,12 +284,18 @@ async connect() {
 
         } catch (error) {
             console.error("❌ Błąd połączenia:", error);
-            // Jeśli błąd dotyczy zapamiętanego urządzenia, usuń je z pamięci, by przy następnym kliknięciu wymusić skanowanie
-            if (this.lastDeviceId) {
-                this.clearDeviceId();
-                this.lastDeviceId = null;
+            
+            // Przy każdym błędzie na Androidzie lepiej zapomnieć ID, 
+            // aby wymusić świeży skan przy następnej próbie
+            this.clearDeviceId();
+            this.lastDeviceId = null;
+            
+            if (this.device && this.device.gatt.connected) {
+                this.device.gatt.disconnect();
             }
+            
             this.handleConnectError(error);
+            this.onDisconnected();
         } finally {
             this.isConnecting = false;
             if (this.btn) this.btn.disabled = false;
@@ -327,22 +335,6 @@ async connect() {
         }
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
     handleRelayUpdate(event) {
         const decoder = new TextDecoder();
         const value = decoder.decode(event.target.value).trim();
@@ -447,27 +439,6 @@ async connect() {
         if (this.forgetBtn) this.forgetBtn.style.display = 'inline-block';
         this.setControlsDisabled(false);
     }
-
-    // onDisconnected() {
-    //     if (this.btn) {
-    //         this.btn.innerText = "POŁĄCZ Z URZĄDZENIEM";
-    //         this.btn.classList.replace('btn-danger', 'btn-primary');
-    //     }
-    //     if (this.statusDot) this.statusDot.classList.replace('text-success', 'text-muted');
-    //     if (this.valueDisplay) this.valueDisplay.innerText = "0.00";
-    //     if (this.forgetBtn) this.forgetBtn.style.display = 'none';
-    //     this.setControlsDisabled(true);
-        
-    //     // Czyszczenie referencji (tylko jeśli nie jesteśmy w trakcie łączenia)
-    //     this.relayChar = null;
-    //     this.currentChar = null;
-    //     this.storageChar = null;
-    //     this.currentSettings = null;
-    //     this.server = null;
-    //     this.device = null;
-        
-    //     console.log("Urządzenie rozłączone.");
-    // }
 
     setControlsDisabled(disabled) {
         if (this.setCurrentInput) this.setCurrentInput.disabled = disabled;
