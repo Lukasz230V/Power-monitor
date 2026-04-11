@@ -1,0 +1,25 @@
+/* Spinner styling */
+
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.25em;
+}
+
+.btn .spinner-border {
+  animation: spinner-border 0.75s linear infinite;
+}
+
+@keyframes spinner-border {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Button state feedback */
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
