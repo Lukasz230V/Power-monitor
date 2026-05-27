@@ -1,11 +1,15 @@
 const CACHE_NAME = 'power-monitor-v1';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/styles.css',
-  '/ble-connection.js',
-  '/pmonitor.png',
+  '/Power-monitor/',
+  '/Power-monitor/index.html',
+  '/Power-monitor/manifest.json',
+  '/Power-monitor/assets/css/styles.css',
+  '/Power-monitor/assets/js/ble-connection.js',
+  '/Power-monitor/assets/img/pmonitor.png',
+  '/Power-monitor/assets/img/icon-192.png',
+  '/Power-monitor/assets/img/icon-512.png',
+  '/Power-monitor/assets/bootstrap/css/bootstrap.min.css',
+  '/Power-monitor/assets/bootstrap/js/bootstrap.min.js',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.8/js/bootstrap.min.js'
 ];
@@ -68,7 +72,7 @@ self.addEventListener('fetch', event => {
 
         return response;
       }).catch(() => {
-        return caches.match('/index.html');
+        return caches.match('/Power-monitor/index.html');
       });
     })
   );

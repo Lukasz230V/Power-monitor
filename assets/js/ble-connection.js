@@ -198,6 +198,11 @@ class BLEManager {
         this.isConnecting = true;
         
         try {
+            // Sprawdzenie dostępności sieci
+            if (!navigator.onLine) {
+                console.warn('⚠️ Jesteś offline - może być problem z połączeniem BLE');
+            }
+
             // RESET STANU - najważniejsze dla Androida
             if (this.device && this.device.gatt.connected) {
                 await this.device.gatt.disconnect();
