@@ -2,6 +2,10 @@
 
 Nadzór podłączonego urządzenia, po osiągnięciu limitu poboru prądu automatycznie wyłącza jego zasilanie. Może pracować zarówno z prądami **AC** i **DC**.
 
+## 🌐 Live Demo
+
+**[→ Otwórz aplikację PWA](https://lukasz230v.github.io/Power-monitor/)**
+
 ## 📋 Opis projektu
 
 **Power-Monitor** to system monitorowania poboru energii elektrycznej, składający się z:
@@ -17,6 +21,7 @@ System automatycznie wyłącza zasilanie urządzenia po przekroczeniu ustawioneg
 - Monitorowanie poboru prądu w czasie rzeczywistym
 - Ustawianie limitów poboru
 - Interfejs BLE do komunikacji z ESP32-S3
+- **Dostępna na:** https://lukasz230v.github.io/Power-monitor/
 
 ### 2. Firmware (p-monitor-fw)
 - **ESP32-S3** firmware napisany w ESP-IDF
@@ -28,11 +33,12 @@ System automatycznie wyłącza zasilanie urządzenia po przekroczeniu ustawioneg
 
 ## 🚀 Quick Start
 
-### Interfejs webowy
+### Interfejs webowy (PWA)
 
-1. Skopiuj wszystkie pliki do katalogu serwowanego przez HTTP
-2. Otwórz `index.html` w przeglądarce
-3. Połącz się z urządzeniem ESP32-S3 poprzez BLE
+1. **Otwórz aplikację:** https://lukasz230v.github.io/Power-monitor/
+2. Pozwól przeglądarce na dostęp do BLE
+3. Połącz się z urządzeniem ESP32-S3
+4. Zacznij monitorować pobór prądu
 
 ### Firmware ESP32-S3
 
@@ -65,6 +71,7 @@ Power-monitor/
 | Frontend  | JavaScript, HTML5, CSS3 |
 | Backend   | ESP32-S3, ESP-IDF |
 | Komunikacja | BLE (Bluetooth Low Energy) |
+| Hosting | GitHub Pages |
 
 ## 📊 Statystyka projektu
 
@@ -81,9 +88,9 @@ Power-monitor/
 
 ### Problem z połączeniem BLE
 
-1. Upewnij się, że przeglądarka obsługuje Web Bluetooth API
+1. Upewnij się, że przeglądarka obsługuje Web Bluetooth API (Chrome, Edge, Brave)
 2. Sprawdź czy ESP32-S3 jest włączony i transmituje BLE
-3. Spróbuj w innej przeglądarce (Chrome/Edge)
+3. Spróbuj w innej przeglądarce
 
 ### Problem z uplodem firmware
 
