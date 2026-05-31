@@ -1,6 +1,6 @@
 # Power-Monitor
 
-Nadzór podłączonego urządzenia, po osiągnięciu limitu poboru prądu automatycznie wyłącza jego zasilanie. Może pracować zarówno z prądami **AC** i **DC**.
+Nadzór podłączonego urządzenia, jeśli pobór prądu spadnie poniżej zadanej wartości odłącza całkowicie zasilanie, przydatne przy urządzeniach które nie wchodzą w standby lub mają zawyżony pobór mocy w tym trybie. Może pracować zarówno z prądami **AC** i **DC**.
 
 ## 🌐 Live Demo
 
