@@ -9,11 +9,8 @@ const urlsToCache = [
   '/Power-monitor/assets/img/icon-192.png',
   '/Power-monitor/assets/img/icon-512.png',
   '/Power-monitor/assets/bootstrap/css/bootstrap.min.css',
-  '/Power-monitor/assets/bootstrap/js/bootstrap.min.js',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.8/js/bootstrap.min.js'
+  '/Power-monitor/assets/bootstrap/js/bootstrap.min.js'
 ];
-
 
 // Instalacja Service Workera
 self.addEventListener('install', event => {
@@ -23,7 +20,8 @@ self.addEventListener('install', event => {
       console.log('✅ Cache otwarty');
       return cache.addAll(urlsToCache).catch(err => {
         console.warn('⚠️ Niektóre pliki nie mogły być dodane do cache:', err);
-        return Promise.resolve();
+        // Próbujemy cachować tylko lokalne pliki, ignorując CDN
+        return cache.addAll(urlsToCache.filter(url => !url.includes('http')));
       });
     })
   );
@@ -72,6 +70,7 @@ self.addEventListener('fetch', event => {
 
         return response;
       }).catch(() => {
+        // Gdy brak internetu, zwróć cache'owaną stronę
         return caches.match('/Power-monitor/index.html');
       });
     })
