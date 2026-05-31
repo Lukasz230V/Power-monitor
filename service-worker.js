@@ -3,12 +3,12 @@ const urlsToCache = [
   '/Power-monitor/',
   '/Power-monitor/index.html',
   '/Power-monitor/manifest.json',
-  '/Power-monitor/assets/bootstrap/css/bootstrap.min.css',
-  '/Power-monitor/assets/bootstrap/js/bootstrap.min.js',
+  '/Power-monitor/assets/css/styles.css',
   '/Power-monitor/assets/js/ble-connection.js',
-  '/Power-monitor/assets/img/pmonitor.png'
+  '/Power-monitor/assets/img/pmonitor.png',
+  '/Power-monitor/assets/img/icon-192.png',
+  '/Power-monitor/assets/img/icon-512.png'
 ];
-
 
 // Instalacja Service Workera
 self.addEventListener('install', event => {
@@ -16,11 +16,21 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       console.log('✅ Cache otwarty');
-      return cache.addAll(urlsToCache).catch(err => {
-        console.warn('⚠️ Niektóre pliki nie mogły być dodane do cache:', err);
-        // Kontynuuj pomimo błędów
-        return Promise.resolve();
-      });
+      // Cachuj tylko lokalne pliki
+      return Promise.all(
+        urlsToCache.map(url => 
+          fetch(url)
+            .then(response => {
+              if (response.ok) {
+                cache.put(url, response);
+                console.log('✅ Cached:', url);
+              }
+            })
+            .catch(err => {
+              console.warn('⚠️ Nie mogę cachować:', url, err);
+            })
+        )
+      );
     })
   );
   self.skipWaiting();
@@ -46,7 +56,7 @@ self.addEventListener('activate', event => {
 
 // Fetch - Cache first, fallback to network
 self.addEventListener('fetch', event => {
-  // Ignoruj requesty POST
+  // Ignoruj requesty POST i inne metody
   if (event.request.method !== 'GET') {
     return;
   }
@@ -69,13 +79,17 @@ self.addEventListener('fetch', event => {
         // Sklonuj response
         const responseToCache = response.clone();
 
-        // Dodaj do cache dla przyszłych requestów
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, responseToCache);
-        });
+        // Dodaj do cache dla przyszłych requestów (tylko lokalne zasoby)
+        if (!event.request.url.includes('cdn') && !event.request.url.includes('http')) {
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+            console.log('✅ Dodano do cache:', event.request.url);
+          });
+        }
 
         return response;
-      }).catch(() => {
+      }).catch(err => {
+        console.log('❌ Offline - brak zasobu w cache:', event.request.url);
         // Jeśli sieć niedostępna, zwróć offline page
         return caches.match('/Power-monitor/index.html');
       });
